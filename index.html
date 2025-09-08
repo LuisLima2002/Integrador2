@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESP32 Motor Control</title>
+    <!-- Use Tailwind CSS for easy styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #1a202c; /* Dark background */
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        min-width: 100vw;
+        text-align: center;
+      }
+      .control-grid {
+        display: grid;
+        grid-template-areas:
+          ". up ."
+          "left . right"
+          ". down .";
+        gap: 20px;
+      }
+      .up-button {
+        grid-area: up;
+      }
+      .left-button {
+        grid-area: left;
+      }
+      .right-button {
+        grid-area: right;
+      }
+      .down-button {
+        grid-area: down;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900 text-gray-100">
+    <!-- Main container for the control panel -->
+    <div class="container">
+      <h1 class="text-4xl font-bold mb-8 text-blue-400">Speed: <strong id="speedText"></strong> km/h</h1>
+      <p class="text-lg text-gray-400 mb-8">
+        Click the buttons to control the robot's direction.
+      </p>
+
+      <!-- Container for the directional control buttons -->
+      <div class="control-grid">
+        <!-- Forward button -->
+        <button
+          id="forwardBtn"
+          class="up-button w-32 h-32 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-green-400"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 10l7-7m0 0l7 7m-7-7v18"
+            />
+          </svg>
+        </button>
+
+        <!-- Stop button -->
+        <button
+          id="rightBtn"
+          class="right-button w-32 h-32 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-red-400"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+
+        <!-- Backward button -->
+        <button
+          id="backwardBtn"
+          class="down-button w-32 h-32 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
+          </svg>
+        </button>
+        <button
+          id="leftBtn"
+          class="left-button w-32 h-32 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Status message display -->
+      <p id="status" class="mt-8 text-xl text-gray-300">Awaiting command...</p>
+    </div>
+
+    <script>
+      const statusElement = document.getElementById("status");
+
+      /**
+       * @brief Sends a PUT request to the specified endpoint.
+       * @param endpoint The URL path to send the request to (e.g., '/forward').
+       */
+      async function sendGetRequest(endpoint) {
+        // Replace with your ESP32's actual IP address
+        const esp32IP = "192.168.4.1"; // Default IP when using softAP
+        const url = `http://${esp32IP}${endpoint}`;
+
+        try {
+          statusElement.textContent = `Sending request to: ${endpoint}...`;
+          const response = await fetch(url, {
+            method: "GET",
+            // The ESP32 server doesn't require a body, but we'll include it for clarity
+            headers: { "Content-Type": "text/plain" },
+          });
+
+          if (response.ok) {
+            const message = await response.text();
+            statusElement.textContent = `Success: ${message}`;
+          } else {
+            statusElement.textContent = `Error: HTTP status ${response.status}`;
+            console.error(`Error: HTTP status ${response.status}`);
+          }
+        } catch (error) {
+          statusElement.textContent = "Error: Could not connect to ESP32.";
+          console.error("Error:", error);
+        }
+      }
+
+      const speedText = document.getElementById("speedText");
+
+      // Add event listeners to each button
+      document
+        .getElementById("forwardBtn")
+        .addEventListener("mousedown", () => {
+          sendGetRequest("/forward");
+        });
+
+      document
+        .getElementById("backwardBtn")
+        .addEventListener("mousedown", () => {
+          sendGetRequest("/backward");
+        });
+
+      document.getElementById("rightBtn").addEventListener("mousedown", () => {
+        sendGetRequest("/right");
+      });
+
+      document.getElementById("leftBtn").addEventListener("mousedown", () => {
+        sendGetRequest("/left");
+      });
+
+      document.getElementById("forwardBtn").addEventListener("mouseup", () => {
+        sendGetRequest("/stop");
+      });
+
+      document.getElementById("backwardBtn").addEventListener("mouseup", () => {
+        sendGetRequest("/stop");
+      });
+
+      document.getElementById("rightBtn").addEventListener("mouseup", () => {
+        sendGetRequest("/stop");
+      });
+
+      document.getElementById("leftBtn").addEventListener("mouseup", () => {
+        sendGetRequest("/stop");
+      });
+
+      function pollingSpeed() {
+        const esp32IP = "192.168.4.1"; // Default IP when using softAP
+        const url = `http://${esp32IP}/speed`
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                speedText.innerText=data;
+            })
+            .catch(error => console.error('Error fetching data:', error));
+      }
+
+      // Poll every 5 seconds
+      setInterval(pollingSpeed, 250);
+    </script>
+  </body>
+</html>
+<!DOCTYPE html>

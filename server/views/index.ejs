@@ -1,73 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ESP32 Motor Control</title>
-    <!-- Use Tailwind CSS for easy styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      body {
-        font-family: "Inter", sans-serif;
-        background-color: #1a202c; /* Dark background */
-      }
-      .container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        min-width: 100vw;
-        text-align: center;
-      }
-      .control-grid {
-        display: grid;
-        grid-template-areas:
-          ". up ."
-          "left . right"
-          ". down .";
-        gap: 20px;
-      }
-      .up-button {
-        grid-area: up;
-      }
-      .left-button {
-        grid-area: left;
-      }
-      .right-button {
-        grid-area: right;
-      }
-      .down-button {
-        grid-area: down;
-      }
-    </style>
-  </head>
+<html>
+  <%- include('./partials/head.ejs') %>
   <body class="bg-gray-900 text-gray-100">
     <!-- Main container for the control panel -->
     <div class="container">
       <h1 class="text-4xl font-bold mb-8 text-blue-400">
         Speed: <strong id="speedText"></strong> km/h
       </h1>
-      <p class="text-lg text-gray-400 mb-8">
-        Click the buttons to control the robot's direction.
-      </p>
-
+      <div class="tcenter">
+        <canvas id="canvas">
+          Lo sentimos, su navegador no es compatible &lt;canvas&gt;.
+        </canvas>
+      </div>
+      <select class="form-select" style="margin: 15px 0px;" id="resolutionSelect">
+        <option value="FRAMESIZE_96X96">96X96</option>
+        <option value="FRAMESIZE_QQVGA">QQVGA</option>
+        <option value="FRAMESIZE_240X240">240X240</option>
+        <option value="FRAMESIZE_UXGA">UXGA</option>
+      </select>
       <!-- Container for the directional control buttons -->
       <div class="control-grid">
         <!-- Forward button -->
         <button
           id="forwardBtn"
-          class="up-button w-32 h-32 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-green-400"
+          class="up-button w-16 h-16 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-green-400"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 mx-auto"
+            class="h-8 w-8 mx-auto"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -84,11 +44,11 @@
         <!-- Stop button -->
         <button
           id="rightBtn"
-          class="right-button w-32 h-32 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-red-400"
+          class="right-button w-16 h-16 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-red-400"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 mx-auto"
+            class="h-8 w-8 mx-auto"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -105,11 +65,11 @@
         <!-- Backward button -->
         <button
           id="backwardBtn"
-          class="down-button w-32 h-32 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
+          class="down-button w-16 h-16 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 mx-auto"
+            class="h-8 w-8 mx-auto"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -124,11 +84,11 @@
         </button>
         <button
           id="leftBtn"
-          class="left-button w-32 h-32 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
+          class="left-button w-16 h-16 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 mx-auto"
+            class="h-8 w-8 mx-auto"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -234,7 +194,9 @@
       setInterval(pollingSpeed, 1000);
 
       document.addEventListener("keydown", (event) => {
-         if (event.repeat) {return}
+        if (event.repeat) {
+          return;
+        }
         // Log the key that was pressed
 
         // Perform actions based on specific keys
@@ -250,7 +212,9 @@
       });
 
       document.addEventListener("keyup", (event) => {
-         if (event.repeat) {return}
+        if (event.repeat) {
+          return;
+        }
         // Log the key that was pressed
         console.log("Key pressed:", event.key);
 
@@ -265,7 +229,68 @@
           sendGetRequest("/stop");
         }
       });
+
+      var last_time = new Date();
+      var portStr = "";
+      if (location.port != "") {
+        portStr = ":" + location.port;
+      }
+      var protocolStr = "ws";
+      if (location.protocol === "https:") {
+        protocolStr = "wss";
+      }
+      console.log(
+        protocolStr + "://" + location.hostname + portStr + "/jpgstream_client"
+      );
+      var ws = new WebSocket(
+        protocolStr + "://" + location.hostname + portStr + "/jpgstream_client"
+      );
+      var canvas = document.getElementById("canvas");
+      var ctx = canvas.getContext("2d");
+
+      var img = new Image();
+      img.onload = function () {
+        canvas.style.width = this.width + "px";
+        canvas.style.height = this.height + "px";
+        ctx.drawImage(
+          this,
+          0,
+          0,
+          this.width,
+          this.height, // source rectangle
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        ); // destination rectangle
+      };
+      let fps = [];
+      img.src =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAA1BMVEUAAACnej3aAAAASElEQVR4nO3BgQAAAADDoPlTX+AIVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwDcaiAAFXD1ujAAAAAElFTkSuQmCC";
+      ws.onmessage = function (message) {
+        if (typeof message.data === "string") {
+          let width = 100 - message.data / 5;
+          document.getElementById("sensor").style.width = width + "%";
+          if (width < 40) {
+            document.getElementById("sensor").className = "bg-success";
+          } else if (width < 70) {
+            document.getElementById("sensor").className = "bg-warning";
+          } else {
+            document.getElementById("sensor").className = "bg-danger";
+          }
+        } else {
+          var url = URL.createObjectURL(message.data);
+          img.src = url;
+        }
+      };
+
+      document.getElementById("resolutionSelect").onchange = (e) => {
+        ws.send(
+          JSON.stringify({ action: "resolution", value: e.target.value })
+        );
+        fps = [];
+      };
     </script>
   </body>
 </html>
-<!DOCTYPE html>
+<html></html>

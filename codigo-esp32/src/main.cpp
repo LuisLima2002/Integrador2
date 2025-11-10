@@ -1,206 +1,175 @@
-#include <Arduino.h>
-#include <WiFi.h>
-#include <WebServer.h>
+#include <main.h>
 
-// Replace with your network credentials
-const char *ssid = "integrador2";
-const char *password = "passwordbigger2";
-
-// Create a web server object that listens on port 80
-WebServer server(80);
-
-// Pin mapping from your original code
-#define M1_EN 14  // ENA - PWM motor A
-#define M1_IN1 27 // IN1 motor A
-#define M1_IN2 26 // IN2 motor A
-
-#define M2_EN 32  // ENB - PWM motor B
-#define M2_IN1 25 // IN3 motor B
-#define M2_IN2 33 // IN4 motor B
-
-// ESP32 PWM channels
-#define CH_M1 0
-#define CH_M2 1
-
-#define ENCODER 17   // Pino digital para o sensor de velocidade (encoder)
-// Config PWM
-const int PWM_FREQ = 20000;   // 20 kHz
-const int PWM_RES  = 10;      // 10 bits (0..1023)
-
-// Variável para contar os pulsos do encoder
-volatile int pulseCount = 0;
-// Variável para armazenar o tempo anterior para cálculo do intervalo
-unsigned long previousMillis = 0;
-// Intervalo de tempo para cálculo do RPM (1 segundo)
-const long interval = 1000;
-
-float kmh = 0;
-const float   R = 0.03f;            // wheel radius [m]
-
-const float PERIMETER = 2.0f * PI * R;
-
-// Função de interrupção para contar os pulsos do encoder
-void countPulse() {
-  pulseCount++;
-}
-
-// Função utilitária: controla direção e velocidade (−255..+255)
-void setMotor(int motor, int speed) {
-  int in1, in2, ch;
-  if (motor == 1) {
-    in1 = M1_IN1;
-    in2 = M1_IN2;
-    ch = CH_M1;
-  } else {
-    in1 = M2_IN1;
-    in2 = M2_IN2;
-    ch = CH_M2;
-  }
-
-  // Ensure speed is within the valid range
-  speed = constrain(speed, -255, 255);
-
-  if (speed == 0) {
-    // Stop the motor by setting both direction pins low and PWM duty to 0
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
-    ledcWrite(ch, 0);
-    return;
-  }
-
-  if (speed > 0) { // Frente
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-  } else { // Ré
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-  }
-
-  // Map the absolute speed value to a PWM duty cycle
-  int duty = map(abs(speed), 0, 255, 0, (1 << PWM_RES) - 1);
-  ledcWrite(ch, duty);
-}
-
-void handleForward() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  Serial.println("Received PUT request for /forward");
-  setMotor(1, -190); // Motor 1 forward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  setMotor(2, -190); // Motor 2 forward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  server.send(200, "text/plain", "Moving forward.");
-}
-
-void handleBackward() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  Serial.println("Received PUT request for /backward");
-  setMotor(1, 190); // Motor 1 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  setMotor(2, 190); // Motor 2 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  server.send(200, "text/plain", "Moving backward.");
-}
-
-void handleLeft() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  Serial.println("Received PUT request for /backward");
-  setMotor(1, 190); // Motor 1 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  setMotor(2, -190); // Motor 2 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  server.send(200, "text/plain", "Moving backward.");
-}
-
-void handleRight() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  Serial.println("Received PUT request for /backward");
-  setMotor(1, -190); // Motor 1 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  setMotor(2, 190); // Motor 2 backward.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-  server.send(200, "text/plain", "Moving backward.");
-}
-
-void handleStop() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  Serial.println("Received PUT request for /stop");
-  setMotor(1, 0); // Stop motor 1
-  setMotor(2, 0); // Stop motor 2
-  server.send(200, "text/plain", "Stopping.");
-}
-
-void handleNotFound() {
-  server.send(404, "text/plain", "Not found here");
-}
-
-void handleSpeed() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  char floatBuffer[10]; // Adjust size based on expected float range and precision
-  dtostrf(kmh, 4, 2, floatBuffer);
-  server.send(200, "text/plain", floatBuffer);
-}
-
-void setup() {
-  // Start serial communication for debugging
+// ========= HCSR04 =========
+// enable distance sensor
+HCSR04 hc(TRIG_PIN, ECHO_PIN); // (trig, echo)
+// BluetoothSerial SerialBT;
+void setup()
+{
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect
-  }
-
-  // Configure motor control pins
+  // SerialBT.begin("ESP32_BT_Device");
+  // enable PWM AND motors pins
   pinMode(M1_IN1, OUTPUT);
   pinMode(M1_IN2, OUTPUT);
   pinMode(M2_IN1, OUTPUT);
   pinMode(M2_IN2, OUTPUT);
 
-  // Configure PWM channels
   ledcSetup(CH_M1, PWM_FREQ, PWM_RES);
   ledcAttachPin(M1_EN, CH_M1);
   ledcSetup(CH_M2, PWM_FREQ, PWM_RES);
   ledcAttachPin(M2_EN, CH_M2);
 
-  // Connect to Wi-Fi
-  // Serial.print("Connecting to Wi-Fi...");
-  // WiFi.begin(ssid, password);
-  // while (WiFi.status() != WL_CONNECTED) {
-  //   delay(500);
-  //   Serial.print(".");
-  // }
+  // enable Enconders pind and set interruptions
+  // encoder_begin();
 
-  // Connect to Wi-Fi
-  Serial.print("Setting AP (Access Point)...");
-  WiFi.softAP(ssid, password);
+  // enable softAP and server
+  // web_begin();
 
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
+  //enable IMU
+  MPU_begin();
 
-  // Define the server's request handlers for specific endpoints and HTTP methods
-  server.on("/forward", HTTP_GET, handleForward);
-  server.on("/backward", HTTP_GET, handleBackward);
-  server.on("/right", HTTP_GET, handleRight);
-  server.on("/left", HTTP_GET, handleLeft);
-  server.on("/stop", HTTP_GET, handleStop);
-  server.on("/speed", HTTP_GET, handleSpeed);
+  // set state to configure
+  gps_begin(&Serial2, GPS_BAUD, GPS_RX_PIN, GPS_TX_PIN);
+  gps_set_target(TARGET_LAT, TARGET_LON, TARGET_INNER_M, TARGET_OUTER_M);
 
-  // Set a handler for any other requests
-  // Set a handler for any other requests
-  server.onNotFound(handleNotFound);
-  // Start the server
-  server.begin();
-  Serial.println("HTTP server started.");
-
-  pinMode(ENCODER, INPUT);
-  attachInterrupt(digitalPinToInterrupt(ENCODER), countPulse, RISING);
+  Serial.println("Setup done");
+  state = MachineState::Forward;
+  Serial.println("State: Forward");
+  digitalWrite(COLLISION_LED, HIGH);
+  delay(10000);
+  digitalWrite(COLLISION_LED, LOW);
+  reset_yaw();
 }
 
-void loop() {
-  server.handleClient();
+// state:
 
-  // Verifica se já passou o intervalo de 1 segundo
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;  // Atualiza o tempo anterior
+// Config
+// Wait connections to GPS, when finished go to DirectionCalc
 
-    // Desabilita temporariamente as interrupções para copiar o valor dos pulsos
-    noInterrupts();
-    int pulses = pulseCount;
-    pulseCount = 0;  // Reseta o contador de pulsos
-    interrupts();  // Habilita as interrupções novamente
+// ReferenceFetch
+// Save current gps position as p0 and turn motor to go forward, after X seconds stop motos and go to RouteCalc
 
-    // Calcula o RPM (rotações por minuto)
-    kmh = (pulses / 16.0) *PERIMETER *3.6f;
+// RouteCalc
+// save current gps position as p1 and using p0, p1 and p_ref set the theta_togo and distance_togo, also set p1=p0. After this go to Rotate
+
+// Rotate
+// Rotate theta_togo angles in the right direction, after this go to forward
+
+// Forward
+//  Move distance_togo forwad, after this go to Evaluation
+
+// Evaluation
+// Check if current position is close enough to p_ref go to done, else save currente position as p0 and go to route calc
+
+// Done
+// Buzzer on and do not move anymore
+
+unsigned long lastTime = 0;
+float yaw = 0;
+float kmh = 0;
+GpsNavCommand navCmd;
+unsigned long previousMillisRPM;
+void loop()
+{
+  // if (SerialBT.available()) {
+  //   // Read the incoming byte and print it to the USB Serial Monitor
+  //   char incomingChar = SerialBT.read();
+  //   Serial.print("Received from Python: ");
+  //   Serial.write(incomingChar);
+  // }
+
+  yaw = update_yaw();
+  // unsigned long now = millis();
+  // if (now - previousMillisRPM >= intervalMs) {
+  //       previousMillisRPM = now;
+  //   kmh = update_speed();
+  // }
+  float dist_cm = hc.dist();
+  if (dist_cm > 2.0f && dist_cm < 25.0f)
+  {
+    Serial.println("BLOCKED");
+    stopMotors();
+
+    digitalWrite(COLLISION_BUZZER, HIGH);
+    digitalWrite(COLLISION_LED, HIGH);
+    delay(2000);
+    return;
   }
+
+  // Finite machine state
+  switch (state)
+  {
+  case MachineState::SaveP0:
+    gps_feed();
+    if(gps_save_p0()){
+      state = MachineState::Forward3Seconds;
+      Serial.println("State: Forward3Seconds");
+      lastTime = millis();
+      reset_yaw();
+    }
+    break;
+
+  case MachineState::Forward3Seconds:
+    driveStraight(yaw, 180);
+  //   if ()
+    //   {
+    //     state = MachineState::SaveP1;
+    //     Serial.println("State: SaveP1");
+    // while(true){}
+
+    //   }
+
+    break;
+
+  case MachineState::SaveP1:
+  gps_feed();
+  if(gps_save_p1()){
+      state = MachineState::RouteCalc;
+      Serial.println("State: RouteCalc");
+
+    }
+  break;
+
+  case MachineState::RouteCalc:
+    navCmd = gps_calculate_route();
+    Serial.print("distance:");
+    Serial.print(navCmd.distance_m,5);
+    Serial.print(" ANGLE:");
+    Serial.println(navCmd.bearing_to_goal_deg,5);
+    reset_yaw();
+    resetTimer();
+    state = MachineState::Rotate;
+    break;
+
+  case MachineState::Rotate:
+    if(turnByAngle(180,yaw)){
+      state = MachineState::Forward;
+
+      reset_yaw();
+      // resetDistance();
+      // resetTimer();
+    }
+    break;
+
+  case MachineState::Forward:
+      driveStraight(yaw, 180);
+      // setMotor(1,255);
+      // setMotor(2,-255);
+    break;
+
+  case MachineState::Evaluation:
+    if(gps_evaluate()){
+      state = MachineState::Done;
+    }else{
+      digitalWrite(COLLISION_BUZZER, HIGH);
+      digitalWrite(COLLISION_LED, HIGH);
+    };
+    break;
+
+  // case MachineState::Done:
+  //   /* code */
+  //   break;
+  }
+
+  delay(50);
 }

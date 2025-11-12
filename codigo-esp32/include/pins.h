@@ -21,7 +21,7 @@
 
 // HCSR04
 
-#define TRIG_PIN 12
+#define TRIG_PIN 15
 #define ECHO_PIN 13
 
 // Colisão

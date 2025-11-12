@@ -84,7 +84,15 @@ bool gps_save_p1();
 GpsNavCommand gps_calculate_route();
 bool gps_evaluate();
 
+void p1_to_p0();
 
+void gps_loop_3_second();
+
+double get_p0_lat();
+double get_p0_lon();
+double get_p1_lat();
+double get_p1_lon();
+double get_distance_from_goal();
 
 #ifdef __cplusplus
 }

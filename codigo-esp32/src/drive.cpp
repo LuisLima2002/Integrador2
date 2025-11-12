@@ -37,8 +37,8 @@ bool metersStraight(float distanceToGo, float kmh){
 
 void driveStraight(float yaw, float yaw_ref){
   float correction = (yaw- yaw_ref)*2;
-  setMotor(1,190-correction);
-  setMotor(2,190+correction);
+  setMotor(1,230-correction);
+  setMotor(2,230+correction);
 }
 
 // Giro no lugar: sinal ∈ {-1, +1}

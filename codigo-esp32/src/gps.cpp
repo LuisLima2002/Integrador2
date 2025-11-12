@@ -13,6 +13,7 @@ static double p0_lon_deg = NAN;
 static double p1_lat_deg = NAN;
 static double p1_lon_deg = NAN;
 
+static double distance_from_goal = NAN;
 static double s_inner_radius_m = 8.0;
 static double s_outer_radius_m = 12.0;
 static bool   s_inside_radius  = false;  // estado da histerese
@@ -30,6 +31,26 @@ static bool target_is_valid(void) {
 
 // ====== API ======
 
+double get_p0_lat(){
+  return p0_lat_deg;
+}
+
+double get_p0_lon(){
+  return p0_lon_deg;
+}
+
+double get_p1_lat(){
+  return p1_lat_deg;
+}
+
+double get_p1_lon(){
+  return p1_lon_deg;
+}
+
+double get_distance_from_goal(){
+  return distance_from_goal;
+}
+
 void gps_begin(HardwareSerial* port, uint32_t baud, int rxPin, int txPin) {
   s_port = port;
   if (s_port) {
@@ -46,14 +67,59 @@ void gps_feed(void) {
   }
 }
 
+// --- Define Your Averaging Parameters ---
+
+// The number of points to average (as you requested)
+const int AVG_POINTS_COUNT = 5; 
+
+// The number of seconds to wait BETWEEN each point
+const int AVG_DELAY_SECONDS = 3; 
+
+/*
+ * --------------------------------------------------------------------
+ * New Helper Function
+ * --------------------------------------------------------------------
+ * This function takes all the measurements.
+ * It returns 'true' only if ALL 5 points are read successfully.
+ * If any single point fails, it stops immediately and returns 'false'.
+ */
+bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int delaySeconds=1) {
+    double totalLat = 0.0;
+    double totalLon = 0.0;
+    
+    for (int i = 0; i < numPoints; i++) {
+        if (i > 0) {
+            // Convert seconds to milliseconds for the delay
+            delay(delaySeconds * 1000); 
+        }
+
+        // --- 2. Try to get the current location ---
+        double currentLat, currentLon;
+        if (!gps_current_location(&currentLat, &currentLon)) {
+            
+            return false;
+        }
+
+        // --- 4. Add the successful point to the total ---
+        totalLat += currentLat;
+        totalLon += currentLon;
+    }
+
+    // --- 5. If we get here, all 5 points were successful ---
+    // Calculate the average and store it in the output variables
+    *outLat = totalLat / numPoints;
+    *outLon = totalLon / numPoints;
+
+    return true;
+}
+
+
 bool gps_save_p0(){
-  return true;
-  return gps_current_location(&p0_lat_deg,&p0_lon_deg);
+  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg);
 }
 
 bool gps_save_p1(){
-  return true;
-  return gps_current_location(&p1_lat_deg,&p1_lon_deg);
+  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg);
 }
 
 void gps_set_report_interval_ms(uint32_t ms) { s_report_interval_ms = ms; }
@@ -72,7 +138,7 @@ bool gps_current_location(double* lat_deg, double* lon_deg) {
   if (!gps_has_data(10)) Serial.println("gps no DATA");
   if (!s_gps.location.isValid()) Serial.println("gps no valid");
   if (!lat_deg || !lon_deg) return false;
-  if (!s_gps.location.isValid()) return false;
+  if (!s_gps.location.isValid() || gps_satellites() > 4 || gps_hdop() > 3) return false;
   *lat_deg = s_gps.location.lat();
   *lon_deg = s_gps.location.lng();
   Serial.print("Lat:");
@@ -95,7 +161,7 @@ double gps_hdop(void) {
     // Ex.: 95 => 0.95
     return s_gps.hdop.value() / 100.0;
   }
-  return -1.0;
+  return 999;
 }
 
 
@@ -108,111 +174,97 @@ void gps_set_target(double lat_deg, double lon_deg,
   s_inside_radius  = false; // reavalia ao próximo cálculo
 }
 
-bool gps_distance_bearing_to_target(double* distance_m, double* bearing_deg) {
-  if (!distance_m || !bearing_deg) return false;
-  if (!gps_has_fix() || !target_is_valid()) return false;
+// bool gps_distance_bearing_to_target(double* distance_m, double* bearing_deg) {
+//   if (!distance_m || !bearing_deg) return false;
+//   if (!gps_has_fix() || !target_is_valid()) return false;
 
-  double lat, lon;
-  if (!gps_current_location(&lat, &lon)) return false;
+//   double lat, lon;
+//   if (!gps_current_location(&lat, &lon)) return false;
 
-  *distance_m  = gps_haversine_m(lat, lon, s_target_lat_deg, s_target_lon_deg);
-  *bearing_deg = gps_bearing_deg(lat, lon, s_target_lat_deg, s_target_lon_deg);
-  return true;
+//   *distance_m  = gps_haversine_m(lat, lon, s_target_lat_deg, s_target_lon_deg);
+//   *bearing_deg = gps_bearing_deg(lat, lon, s_target_lat_deg, s_target_lon_deg);
+//   return true;
+// }
+
+const double R = 6371000.0; // Earth radius in meters
+
+double deg2rad(double deg) {
+    return deg * PI / 180.0;
 }
+
+double rad2deg(double rad) {
+    return rad * 180.0 / PI;
+}
+
+
+double bearing(double lat1, double lon1, double lat2, double lon2) {
+    double phi1 = deg2rad(lat1);
+    double phi2 = deg2rad(lat2);
+    double deltaLambda = deg2rad(lon2 - lon1);
+
+    double x = sin(deltaLambda) * cos(phi2);
+    double y = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(deltaLambda);
+    double theta = atan2(x, y);
+
+    double brng = fmod(rad2deg(theta) + 360.0, 360.0);
+    return brng;
+}
+
+double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
+    double phi1 = deg2rad(lat1);
+    double phi2 = deg2rad(lat2);
+    double dphi = phi2 - phi1;
+    double dlambda = deg2rad(lon2 - lon1);
+
+    double a = pow(sin(dphi / 2), 2) +
+               cos(phi1) * cos(phi2) * pow(sin(dlambda / 2), 2);
+    double c = 2 * asin(sqrt(a));
+    return R * c;
+}    
 
 bool gps_evaluate() {
-  p1_lat_deg =  p0_lat_deg;
-  p1_lon_deg =  p0_lon_deg;
-  gps_save_p0();
-
-  GpsNavCommand navCmd = gps_calculate_route();
-
-  if(navCmd.distance_m > 2) return false;
+  double lat, lon; 
+  getAverageGpsLocation(&lat, &lon);
+  distance_from_goal = haversine_distance( lat, lon, s_target_lat_deg,s_target_lon_deg);
+  if(distance_from_goal > 5) return false;
   return true;
 }
 
-struct Point{
-  double x;
-  double y;
-};
+                                                                                                 
 
-
-Point MercantorPoint(double lat, double lon){
-  double x = kEarthRadius_m * (lon-s_target_lon_deg) * M_PI / 180.0;
-
-  double lat_rad = (lat-s_target_lat_deg) * M_PI / 180.0;
-  float y = kEarthRadius_m * log(tan(lat_rad) + (1.0 / cos(lat_rad)));
-  
-  return Point{x=x,y=y};
+void p1_to_p0(){
+  p0_lat_deg=p1_lat_deg;
+  p0_lon_deg=p1_lon_deg;
 }
-
-double DistanceBetween(Point a, Point b){
-  return sqrt(pow(a.x-b.x,2)+pow(a.y-b.y,2));
-}
-
-double calculateAngle(Point p1, Point p2, Point p3) {
-     // Create vectors v1 = p1 - p2, v2 = p3 - p2
-    double v1x = p1.x - p2.x;
-    double v1y = p1.y - p2.y;
-    double v2x = p3.x - p2.x;
-    double v2y = p3.y - p2.y;
-
-    // Compute dot product and magnitudes
-    double dot = v1x * v2x + v1y * v2y;
-    double mag1 = sqrt(v1x * v1x + v1y * v1y);
-    double mag2 = sqrt(v2x * v2x + v2y * v2y);
-
-    // Debug: print intermediate values
-    Serial.println("---- Debug Info ----");
-    Serial.print("v1: ("); Serial.print(v1x); Serial.print(", "); Serial.print(v1y); Serial.println(")");
-    Serial.print("v2: ("); Serial.print(v2x); Serial.print(", "); Serial.print(v2y); Serial.println(")");
-    Serial.print("dot = "); Serial.println(dot, 6);
-    Serial.print("mag1 = "); Serial.println(mag1, 6);
-    Serial.print("mag2 = "); Serial.println(mag2, 6);
-
-    // Avoid division by zero
-    if (mag1 == 0.0 || mag2 == 0.0) {
-        Serial.println("Error: Two points are identical, cannot define an angle.");
-        return NAN;
-    }
-
-    // Compute cosine of the angle
-    double cos_theta = dot / (mag1 * mag2);
-
-    // Clamp to avoid domain errors
-    if (cos_theta > 1.0) cos_theta = 1.0;
-    if (cos_theta < -1.0) cos_theta = -1.0;
-
-    Serial.print("cos(theta) = "); Serial.println(cos_theta, 6);
-
-    // Compute angle
-    double angle_rad = acos(cos_theta);
-    double angle_deg = angle_rad * (180.0 / M_PI);
-
-    Serial.print("angle (deg) = "); Serial.println(angle_deg, 6);
-    Serial.println("---------------------");
-
-    return angle_deg;
-}                                                                                                              
 
 GpsNavCommand gps_calculate_route(){
-  GpsNavCommand navCmd;
-  // Point point0 = MercantorPoint(p0_lat_deg,p0_lon_deg);
-  // Point point1 = MercantorPoint(p1_lat_deg,p1_lon_deg);
-  // Point pointRef = MercantorPoint(s_target_lat_deg,s_target_lon_deg);
-  Point point0 = {-1,-1};
-  Point point1 = {0,-1};
-  Point pointRef = {0,0};
-  Serial.print("P0: ");
-  Serial.print(point0.x);
-  Serial.print(" ");
-  Serial.print(point0.y);
-  Serial.print(" P1: ");
-  Serial.print(point1.x);
-  Serial.print(" ");
-  Serial.println(point1.y);
-  navCmd.bearing_to_goal_deg = 180-calculateAngle(point0,point1,pointRef); 
-  navCmd.distance_m = DistanceBetween(point1,pointRef); 
+    GpsNavCommand navCmd;
+    double bearing12 = bearing(p0_lat_deg, p0_lon_deg, p1_lat_deg, p1_lon_deg);
+    double bearing23 = bearing( p1_lat_deg, p1_lon_deg, s_target_lat_deg,s_target_lon_deg);
+    navCmd.distance_m = haversine_distance( p1_lat_deg, p1_lon_deg, s_target_lat_deg,s_target_lon_deg);
 
-  return navCmd;
+    double delta = fmod(bearing23 - bearing12 + 540.0, 360.0) - 180.0;
+
+    int turnDirection =0;
+    Serial.print("Turn Direction: ");
+    if (delta > 0){
+      Serial.println("Direita");
+      turnDirection = 1;
+    }
+    else if (delta < 0){
+      Serial.println("Esquerda");
+      turnDirection = -1;
+    }
+
+    navCmd.bearing_to_goal_deg = fabs(delta) * turnDirection;
+    Serial.print("Bearing to Goal: ");
+    Serial.println(navCmd.bearing_to_goal_deg);
+    return navCmd;
+}
+
+void gps_loop_3_second(){
+  double lastTime = millis();
+  while ( lastTime + 3000> millis()){
+    gps_feed();
+  }
 }

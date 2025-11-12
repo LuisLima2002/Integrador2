@@ -14,9 +14,8 @@ constexpr int PWM_RES  = 10;    // 10 bits (0..1023)
 const unsigned long intervalMs = 250; // 1 s
 
 // --------- Ajustes do alvo (graus decimais) ---------
-// 26°14'07.9"S 48°53'04.8"W  -> lat ≈ -26.235528, lon ≈ -48.884667
-static const double TARGET_LAT = -26.2713646670;
-static const double TARGET_LON = -48.8557290000;
+static const double TARGET_LAT = -26.2358008330;
+static const double TARGET_LON = -48.8846560000;
 // Histerese de chegada (m) — ajuste conforme erro do seu GPS
 static const double TARGET_INNER_M = 8.0;
 static const double TARGET_OUTER_M = 12.0;

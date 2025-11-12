@@ -37,8 +37,7 @@ enum MachineState
   Forward3Seconds,
   SaveP1,
   RouteCalc,
-  Rotate,
-  Forward,
+  DriveToGoal,
   Evaluation,
   Done,
 };

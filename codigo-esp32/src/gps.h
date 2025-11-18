@@ -78,6 +78,7 @@ double gps_haversine_m(double lat1_deg, double lon1_deg,
 double gps_bearing_deg(double lat1_deg, double lon1_deg,
                        double lat2_deg, double lon2_deg);
 
+double haversine_distance(double lat1, double lon1, double lat2, double lon2);\
 bool gps_save_p0();
 bool gps_save_p1();
 

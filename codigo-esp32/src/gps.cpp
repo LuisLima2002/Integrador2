@@ -115,11 +115,11 @@ bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int
 
 
 bool gps_save_p0(){
-  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg);
+  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,30);
 }
 
 bool gps_save_p1(){
-  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg);
+  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,30);
 }
 
 void gps_set_report_interval_ms(uint32_t ms) { s_report_interval_ms = ms; }
@@ -136,9 +136,9 @@ bool gps_has_fix(void) {
 
 bool gps_current_location(double* lat_deg, double* lon_deg) {
   if (!gps_has_data(10)) Serial.println("gps no DATA");
-  if (!s_gps.location.isValid()) Serial.println("gps no valid");
+  if (!s_gps.location.isValid() || gps_satellites() < 4 || gps_hdop() > 3) Serial.println("gps no valid");
   if (!lat_deg || !lon_deg) return false;
-  if (!s_gps.location.isValid() || gps_satellites() > 4 || gps_hdop() > 3) return false;
+  if (!s_gps.location.isValid() || gps_satellites() < 4 || gps_hdop() > 3) return false;
   *lat_deg = s_gps.location.lat();
   *lon_deg = s_gps.location.lng();
   Serial.print("Lat:");
@@ -224,9 +224,9 @@ double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
 
 bool gps_evaluate() {
   double lat, lon; 
-  getAverageGpsLocation(&lat, &lon);
+  getAverageGpsLocation(&lat, &lon, 20);
   distance_from_goal = haversine_distance( lat, lon, s_target_lat_deg,s_target_lon_deg);
-  if(distance_from_goal > 5) return false;
+  if(distance_from_goal > 3) return false;
   return true;
 }
 

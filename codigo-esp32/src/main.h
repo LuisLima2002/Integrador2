@@ -32,9 +32,9 @@
 
 enum MachineState
 {
-  Config,
+  Idle,
   SaveP0,
-  Forward3Seconds,
+  DriveForward,
   SaveP1,
   RouteCalc,
   DriveToGoal,

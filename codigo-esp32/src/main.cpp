@@ -1,10 +1,57 @@
 #include <main.h>
 #include "BluetoothSerial.h"
 
+BluetoothSerial SerialBT;
+
+void handleBluetoothCommands() {
+  // Check if there is any data from the phone
+  if (SerialBT.available()) {
+    // Read the incoming message as a String
+    String incomingMessage = SerialBT.readString();
+    
+    // Remove any leading/trailing whitespace (like newlines)
+    incomingMessage.trim();
+    
+    // Ignore empty messages
+    if (incomingMessage.length() == 0) {
+      return;
+    }
+
+    // Print the received message to the Serial Monitor for debugging
+    Serial.print("Received BT Command: ");
+    Serial.println(incomingMessage);
+
+    // Check if the message is "start"
+    if (incomingMessage.equalsIgnoreCase("start")) {
+      // Only start if we are in Idle or Done state
+      if (state == MachineState::Idle || state == MachineState::Done) {
+        if (SerialBT.connected()) {
+          SerialBT.println("Start command received. Initializing sequence.");
+        }
+        state = MachineState::SaveP0;
+        Serial.println("State: SaveP0");
+        reset_yaw(); // Reset yaw when we officially start
+      } else {
+        if (SerialBT.connected()) {
+          SerialBT.println("Already running. Send 'stop' first.");
+        }
+      }
+    }
+    // I've added a "stop" command for safety and to re-enter Idle
+    else if (incomingMessage.equalsIgnoreCase("stop")) {
+      if (SerialBT.connected()) {
+        SerialBT.println("Stop command received. Halting and returning to Idle.");
+      }
+      stopMotors();
+      state = MachineState::Idle;
+      Serial.println("State: Idle");
+    }
+  }
+}
+
 // ========= HCSR04 =========
 // enable distance sensor
 HCSR04 hc(TRIG_PIN, ECHO_PIN); // (trig, echo)
-BluetoothSerial SerialBT;
 void setup()
 {
   Serial.begin(9600);
@@ -13,6 +60,8 @@ void setup()
   pinMode(M1_IN2, OUTPUT);
   pinMode(M2_IN1, OUTPUT);
   pinMode(M2_IN2, OUTPUT);
+
+  pinMode(COLLISION_BUZZER, OUTPUT);
 
   ledcSetup(CH_M1, PWM_FREQ, PWM_RES);
   ledcAttachPin(M1_EN, CH_M1);
@@ -34,35 +83,7 @@ void setup()
 
 
   SerialBT.begin("ESP32_Device");
-
-  while (true) {
-    gps_feed();
-    // Check if there is any data from the phone
-    if (SerialBT.available()) {
-      // Read the incoming message as a String
-      String incomingMessage = SerialBT.readString();
-      
-      // Remove any leading/trailing whitespace (like newlines)
-      incomingMessage.trim();
-      
-      // Print the received message to the Serial Monitor for debugging
-      Serial.print("Received: ");
-      Serial.println(incomingMessage);
-
-      // Check if the message is "start" (case-insensitive)
-      if (incomingMessage.equalsIgnoreCase("start")) {
-        break;
-      }
-    }
-    
-    // A small delay to prevent the ESP32 from crashing
-    delay(100); 
-  }
-
-  SerialBT.println("Setup done");
-  state = MachineState::SaveP0;
-  SerialBT.println("State: SaveP0");
-  reset_yaw();
+  state = MachineState::Idle;
 }
 
 // state:
@@ -94,34 +115,68 @@ float kmh = 0;
 GpsNavCommand navCmd;
 unsigned long previousMillisRPM;
 
+boolean blocked = false;
+unsigned long elapsedTimeBlocked = 0;
+
 void loop()
 {
   //Positivo vira para direita
+  handleBluetoothCommands();
   yaw = update_yaw();
   gps_feed();
-  // if (gps_evaluate()) Serial.println("Dentro!");
-  // else Serial.println("Fora!");
+  // double lat, lon; 
+  // gps_current_location(&lat, &lon);
+  // SerialBT.print(" Lat: ");
+  // SerialBT.print(lat,6);
+  // SerialBT.print(" Lon: ");
+  // SerialBT.print(lon,6);
+  // SerialBT.print(" Satellites: ");
+  // SerialBT.print(gps_satellites());
+  // SerialBT.print(" Distance: ");
+  // SerialBT.print(haversine_distance(lat,lon,TARGET_LAT,TARGET_LON));
+  // SerialBT.print(" HDOP: ");
+  // SerialBT.println(gps_hdop());
+  
+  // delay(1500);
+      
+  // return;
   // return;
   // unsigned long now = millis();
   // if (now - previousMillisRPM >= intervalMs) {
   //       previousMillisRPM = now;
   //   kmh = update_speed();
   // }
-  // float dist_cm = hc.dist();
-  // if (dist_cm > 2.0f && dist_cm < 25.0f)
-  // {
-  //   Serial.println("BLOCKED");
-  //   stopMotors();
-  //   Serial.println(dist_cm);
-  //   digitalWrite(COLLISION_BUZZER, HIGH);
-  //   digitalWrite(COLLISION_LED, HIGH);
-  //   delay(1000);
-  //   return;
-  // }
+  float dist_cm = hc.dist();
+  if (dist_cm > 2.0f && dist_cm < 25.0f)
+  {
+    SerialBT.println("BLOCKED");
+    SerialBT.println(dist_cm);
+    stopMotors();
+    digitalWrite(COLLISION_BUZZER, HIGH);
+    delay(1000);
+
+    if(!blocked){
+      blocked=true;
+      elapsedTimeBlocked = millis() - lastTime;
+    }
+    return;
+  }else{
+    if(blocked){
+      blocked= false;
+      lastTime = millis() - elapsedTimeBlocked;
+    }
+    digitalWrite(COLLISION_BUZZER, LOW);
+  }
 
   // Finite machine state
   switch (state)
   {
+  case MachineState::Idle:
+    // This is the new waiting state.
+    // The robot will do nothing until the "start" command is received.
+    stopMotors(); // Ensure motors are off
+    delay(100);   // Prevent the loop from spinning too fast
+    break;
   case MachineState::SaveP0:
     if(gps_save_p0()){
       SerialBT.print("P0 saved at Lat: ");
@@ -133,8 +188,8 @@ void loop()
       SerialBT.print(" HDOP: ");
       SerialBT.println(gps_hdop());
       
-      state = MachineState::Forward3Seconds;
-      SerialBT.println("State: Forward");
+      state = MachineState::DriveForward;
+      SerialBT.println("State: DriveForward");
       lastTime = millis();
       reset_yaw();
     }else{
@@ -147,14 +202,14 @@ void loop()
     }
     break;
 
-  case MachineState::Forward3Seconds:
+  case MachineState::DriveForward:
     driveStraight(yaw, 0);
     if (lastTime + 20000 < millis())
       {
         stopMotors();
         state = MachineState::SaveP1;
         SerialBT.println("State: SaveP1");
-        gps_loop_3_second();
+        // gps_loop_3_second();
       }
 
     break;
@@ -194,12 +249,11 @@ void loop()
     Serial.println("State: DriveToGoal");
     break;
 case MachineState::DriveToGoal:
-    // Check if 10 seconds (10000 milliseconds) have passed
     if (millis() - lastTime > 10000) 
     {
         // 10 seconds are up. Stop the robot.
         stopMotors();
-        
+
         // Go directly to Evaluation state
         state = MachineState::Evaluation;
         SerialBT.println("State: Evaluation");
@@ -219,16 +273,16 @@ case MachineState::DriveToGoal:
     }else{
       SerialBT.println("Saving new P0 as P1");
       p1_to_p0();
-      gps_loop_3_second();
+      // gps_loop_3_second();
       state = MachineState::SaveP1;
       SerialBT.println("State: SaveP1");
     };
     break;
 
   case MachineState::Done:
-    // digitalWrite(COLLISION_BUZZER, HIGH);
-    setMotor(1,175);
-    setMotor(2,-175);
+    digitalWrite(COLLISION_BUZZER, HIGH);
+    // setMotor(1,175);
+    // setMotor(2,-175);
     break;
   }
 

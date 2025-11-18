@@ -1,54 +1,16 @@
 #include "camera_pins.h"
-#include <WiFi.h>
-#include "esp_camera.h"
-#include <WebSocketsClient.h>
-#include <ArduinoJson.h>
-using namespace std;
-      
-const char* ssid = "integrador2";
-const char* password = "passwordbigger2";
+#include <WiFi.h>        // <-- From your original list
+#include "esp_camera.h"  // <-- From your original list
+// We remove WebSocketsClient.h and ArduinoJson.h as they are not usable for this server
 
-WebSocketsClient webSocket;
+const char* ssid = "ESP32-Camera-Stream";
+const char* password = "password123";
 
+// Create a WiFiServer object on port 80 (HTTP)
+WiFiServer server(80);
 
-framesize_t convert(const char *str)
-{
-    if(strcmp(str,"FRAMESIZE_96X96")==0) return FRAMESIZE_96X96;
-    else if(strcmp(str,"FRAMESIZE_240X240")==0) return FRAMESIZE_240X240;
-    else if(strcmp(str,"FRAMESIZE_QQVGA")==0) return FRAMESIZE_QQVGA;
-    else if(strcmp(str,"FRAMESIZE_UXGA")==0) return FRAMESIZE_UXGA;
-}
-
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-  const uint8_t size = JSON_OBJECT_SIZE(5);
-  StaticJsonDocument<size> json;
-  deserializeJson(json, payload);
-  const char *action = json["action"];
-
-  switch(type) {
-    case WStype_DISCONNECTED:
-      Serial.printf("[WSc] Disconnected!\n");
-      break;
-    case WStype_CONNECTED: {
-      Serial.printf("[WSc] Connected to url: %s\n", payload);
-    }
-      break;
-    case WStype_TEXT:
-      Serial.printf("[WSc] get text: %s\n", payload);
-      if(strcmp(action,"resolution")==0){
-        Serial.printf("Changing resolution\n");
-        const char *value = json["value"];
-        framesize_t resolution = convert(value);
-        sensor_t * s = esp_camera_sensor_get();
-        delay(1000);
-        s->set_framesize(s,resolution);
-        delay(1000);
-      }
-      break;
-
-}
-}
-
+// --- Your original setupCamera() function ---
+// I've copied it here for completeness
 void setupCamera() {
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -87,57 +49,92 @@ void setupCamera() {
     s->set_brightness(s, 1); 
     s->set_saturation(s, -2); 
   }
+  // Set initial resolution
   s->set_framesize(s,FRAMESIZE_240X240);
 }
 
+// --- setup() ---
+// Creates the AP and starts the server
 void setup() {
   Serial.begin(115200);
 
-  Serial.println(ssid);
-  Serial.println(password);
-  WiFi.begin(ssid, password);
-  int j =0;
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println(j);
-    j++;
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
-
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
-
-
-  webSocket.begin("192.168.4.1", 3000, "/jpgstream_server");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000);
-  webSocket.enableHeartbeat(15000, 3000, 2);
+  // Start Camera
   setupCamera();
 
+  // Start Access Point
+  Serial.print("Creating AP: ");
+  Serial.println(ssid);
+  WiFi.softAP(ssid, password);
+
+  Serial.print("AP IP address: ");
+  Serial.println(WiFi.softAPIP()); // Default is 192.168.4.1
+
+  // Start the server
+  server.begin();
+  Serial.println("Server started. MJPEG stream is ready.");
 }
 
-
-void sendImage(){
-int64_t fr_start = esp_timer_get_time();
-  webSocket.loop();
-  camera_fb_t * fb = NULL;
-
-  // Take Picture with Camera
-  fb = esp_camera_fb_get();  
-  if(!fb) {
-    Serial.println("Camera capture failed");
-    return;
-  }     
-  webSocket.sendBIN(fb->buf,fb->len);
-  esp_camera_fb_return(fb); 
-  int64_t fr_end = esp_timer_get_time();
-  // Serial.printf("Image sent. %ums. FPS: %u\n", (uint32_t)((fr_end - fr_start)/1000),(uint32_t)(1000000/((fr_end - fr_start))));
-}
-
-
+// --- loop() ---
+// This is now a simple, blocking web server.
 void loop() {
-  sendImage();
-  webSocket.loop();
+  WiFiClient client = server.available(); // Listen for incoming clients
+
+  if (client) { // If a new client connects...
+    Serial.println("New Client Connected.");
+    String currentLine = "";                // make a String to hold incoming data
+    while (client.connected()) {            // loop while the client's connected
+      if (client.available()) {             // if there's bytes to read
+        char c = client.read();             // read a byte
+        if (c == '\n') {                    // if the byte is a newline character
+          // if the current line is blank, you got two newline characters in a row.
+          // that's the end of the client HTTP request, so send a response:
+          if (currentLine.length() == 0) {
+            
+            // --- This is the MJPEG stream ---
+            // Send the HTTP header for a streaming response
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: multipart/x-mixed-replace; boundary=--frame");
+            client.println(); // End of header
+
+            // Now, loop forever, sending frames
+            while (client.connected()) {
+              camera_fb_t * fb = NULL;
+              fb = esp_camera_fb_get();
+              if (!fb) {
+                Serial.println("Camera capture failed");
+                continue;
+              }
+
+              // Send the frame boundary
+              client.println("--frame");
+              // Send the frame headers
+              client.println("Content-Type: image/jpeg");
+              client.print("Content-Length: ");
+              client.println(fb->len);
+              client.println();
+              
+              // Send the actual image data
+              client.write(fb->buf, fb->len);
+              
+              // Send trailing newline
+              client.println(); 
+
+              esp_camera_fb_return(fb);
+              
+              delay(1); // Small delay to allow other tasks
+            }
+            // The client has disconnected
+            break;
+          } else { // if you got a newline, then clear currentLine
+            currentLine = "";
+          }
+        } else if (c != '\r') {  // if you got anything else but a carriage return...
+          currentLine += c;      // add it to the end of the currentLine
+        }
+      }
+    }
+    // Close the connection
+    client.stop();
+    Serial.println("Client Disconnected.");
+  }
 }

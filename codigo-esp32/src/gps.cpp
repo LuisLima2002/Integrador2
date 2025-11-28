@@ -47,6 +47,14 @@ double get_p1_lon(){
   return p1_lon_deg;
 }
 
+double get_goal_lat(){
+  return s_target_lat_deg;
+}
+
+double get_goal_lon(){
+  return s_target_lon_deg;
+}
+
 double get_distance_from_goal(){
   return distance_from_goal;
 }
@@ -66,14 +74,6 @@ void gps_feed(void) {
     s_gps.encode(s_port->read());
   }
 }
-
-// --- Define Your Averaging Parameters ---
-
-// The number of points to average (as you requested)
-const int AVG_POINTS_COUNT = 5; 
-
-// The number of seconds to wait BETWEEN each point
-const int AVG_DELAY_SECONDS = 3; 
 
 /*
  * --------------------------------------------------------------------
@@ -115,12 +115,17 @@ bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int
 
 
 bool gps_save_p0(){
-  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,30);
+  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,60);
 }
 
 bool gps_save_p1(){
-  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,30);
+  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,60);
 }
+
+bool gps_save_goal(){
+  return getAverageGpsLocation(&s_target_lat_deg,&s_target_lon_deg,60);
+}
+
 
 void gps_set_report_interval_ms(uint32_t ms) { s_report_interval_ms = ms; }
 uint32_t gps_get_report_interval_ms(void) { return s_report_interval_ms; }
@@ -224,7 +229,7 @@ double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
 
 bool gps_evaluate() {
   double lat, lon; 
-  getAverageGpsLocation(&lat, &lon, 20);
+  getAverageGpsLocation(&lat, &lon, 60);
   distance_from_goal = haversine_distance( lat, lon, s_target_lat_deg,s_target_lon_deg);
   if(distance_from_goal > 3) return false;
   return true;

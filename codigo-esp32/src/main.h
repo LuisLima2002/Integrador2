@@ -32,6 +32,7 @@
 
 enum MachineState
 {
+  SaveGoal,
   Idle,
   SaveP0,
   DriveForward,

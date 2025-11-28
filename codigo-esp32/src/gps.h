@@ -81,6 +81,7 @@ double gps_bearing_deg(double lat1_deg, double lon1_deg,
 double haversine_distance(double lat1, double lon1, double lat2, double lon2);\
 bool gps_save_p0();
 bool gps_save_p1();
+bool gps_save_goal();
 
 GpsNavCommand gps_calculate_route();
 bool gps_evaluate();
@@ -93,6 +94,8 @@ double get_p0_lat();
 double get_p0_lon();
 double get_p1_lat();
 double get_p1_lon();
+double get_goal_lat();
+double get_goal_lon();
 double get_distance_from_goal();
 
 #ifdef __cplusplus

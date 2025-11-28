@@ -3,17 +3,20 @@
 
 BluetoothSerial SerialBT;
 
-void handleBluetoothCommands() {
+void handleBluetoothCommands()
+{
   // Check if there is any data from the phone
-  if (SerialBT.available()) {
+  if (SerialBT.available())
+  {
     // Read the incoming message as a String
     String incomingMessage = SerialBT.readString();
-    
+
     // Remove any leading/trailing whitespace (like newlines)
     incomingMessage.trim();
-    
+
     // Ignore empty messages
-    if (incomingMessage.length() == 0) {
+    if (incomingMessage.length() == 0)
+    {
       return;
     }
 
@@ -22,29 +25,50 @@ void handleBluetoothCommands() {
     Serial.println(incomingMessage);
 
     // Check if the message is "start"
-    if (incomingMessage.equalsIgnoreCase("start")) {
+    if (incomingMessage.equalsIgnoreCase("start"))
+    {
       // Only start if we are in Idle or Done state
-      if (state == MachineState::Idle || state == MachineState::Done) {
-        if (SerialBT.connected()) {
+      if (state == MachineState::Idle || state == MachineState::Done)
+      {
+        if (SerialBT.connected())
+        {
           SerialBT.println("Start command received. Initializing sequence.");
         }
         state = MachineState::SaveP0;
         Serial.println("State: SaveP0");
         reset_yaw(); // Reset yaw when we officially start
-      } else {
-        if (SerialBT.connected()) {
+      }
+      else
+      {
+        if (SerialBT.connected())
+        {
           SerialBT.println("Already running. Send 'stop' first.");
         }
       }
     }
     // I've added a "stop" command for safety and to re-enter Idle
-    else if (incomingMessage.equalsIgnoreCase("stop")) {
-      if (SerialBT.connected()) {
+    else if (incomingMessage.equalsIgnoreCase("stop"))
+    {
+      if (SerialBT.connected())
+      {
         SerialBT.println("Stop command received. Halting and returning to Idle.");
       }
       stopMotors();
       state = MachineState::Idle;
       Serial.println("State: Idle");
+    }
+    else if (incomingMessage.equalsIgnoreCase("save"))
+    {
+      if (state == MachineState::Idle || state == MachineState::Done)
+      {
+        if (SerialBT.connected())
+        {
+          SerialBT.println("Save command received. .");
+        }
+        stopMotors();
+        state = MachineState::SaveGoal;
+        SerialBT.println("State: SaveGoal");
+      }
     }
   }
 }
@@ -74,13 +98,12 @@ void setup()
   // enable softAP and server
   // web_begin();
 
-  //enable IMU
+  // enable IMU
   MPU_begin();
 
   // set state to configure
   gps_begin(&Serial2, GPS_BAUD, GPS_RX_PIN, GPS_TX_PIN);
   gps_set_target(TARGET_LAT, TARGET_LON, TARGET_INNER_M, TARGET_OUTER_M);
-
 
   SerialBT.begin("ESP32_Device");
   state = MachineState::Idle;
@@ -120,11 +143,11 @@ unsigned long elapsedTimeBlocked = 0;
 
 void loop()
 {
-  //Positivo vira para direita
+  // Positivo vira para direita
   handleBluetoothCommands();
   yaw = update_yaw();
   gps_feed();
-  // double lat, lon; 
+  // double lat, lon;
   // gps_current_location(&lat, &lon);
   // SerialBT.print(" Lat: ");
   // SerialBT.print(lat,6);
@@ -136,9 +159,9 @@ void loop()
   // SerialBT.print(haversine_distance(lat,lon,TARGET_LAT,TARGET_LON));
   // SerialBT.print(" HDOP: ");
   // SerialBT.println(gps_hdop());
-  
+
   // delay(1500);
-      
+
   // return;
   // return;
   // unsigned long now = millis();
@@ -155,14 +178,18 @@ void loop()
     digitalWrite(COLLISION_BUZZER, HIGH);
     delay(1000);
 
-    if(!blocked){
-      blocked=true;
+    if (!blocked)
+    {
+      blocked = true;
       elapsedTimeBlocked = millis() - lastTime;
     }
     return;
-  }else{
-    if(blocked){
-      blocked= false;
+  }
+  else
+  {
+    if (blocked)
+    {
+      blocked = false;
       lastTime = millis() - elapsedTimeBlocked;
     }
     digitalWrite(COLLISION_BUZZER, LOW);
@@ -177,22 +204,50 @@ void loop()
     stopMotors(); // Ensure motors are off
     delay(100);   // Prevent the loop from spinning too fast
     break;
-  case MachineState::SaveP0:
-    if(gps_save_p0()){
-      SerialBT.print("P0 saved at Lat: ");
-      SerialBT.print(get_p0_lat(),6);
+  case MachineState::SaveGoal:
+    if (gps_save_goal())
+    {
+      SerialBT.print("Goal saved at Lat: ");
+      SerialBT.print(get_goal_lat(), 8);
       SerialBT.print(" Lon: ");
-      SerialBT.print(get_p0_lon(),6);
+      SerialBT.print(get_goal_lon(), 8);
       SerialBT.print(" Satellites: ");
       SerialBT.print(gps_satellites());
       SerialBT.print(" HDOP: ");
       SerialBT.println(gps_hdop());
-      
+
+      state = MachineState::Idle;
+      Serial.println("State: Idle");
+    }
+    else
+    {
+      SerialBT.println("Waiting for a good gps read");
+      SerialBT.print(" Satellites: ");
+      SerialBT.print(gps_satellites());
+      SerialBT.print(" HDOP: ");
+      SerialBT.println(gps_hdop());
+      delay(1000);
+    }
+    break;
+  case MachineState::SaveP0:
+    if (gps_save_p0())
+    {
+      SerialBT.print("P0 saved at Lat: ");
+      SerialBT.print(get_p0_lat(), 8);
+      SerialBT.print(" Lon: ");
+      SerialBT.print(get_p0_lon(), 8);
+      SerialBT.print(" Satellites: ");
+      SerialBT.print(gps_satellites());
+      SerialBT.print(" HDOP: ");
+      SerialBT.println(gps_hdop());
+
       state = MachineState::DriveForward;
       SerialBT.println("State: DriveForward");
       lastTime = millis();
       reset_yaw();
-    }else{
+    }
+    else
+    {
       SerialBT.println("Waiting for a good gps read");
       SerialBT.print(" Satellites: ");
       SerialBT.print(gps_satellites());
@@ -205,21 +260,22 @@ void loop()
   case MachineState::DriveForward:
     driveStraight(yaw, 0);
     if (lastTime + 20000 < millis())
-      {
-        stopMotors();
-        state = MachineState::SaveP1;
-        SerialBT.println("State: SaveP1");
-        // gps_loop_3_second();
-      }
+    {
+      stopMotors();
+      state = MachineState::SaveP1;
+      SerialBT.println("State: SaveP1");
+      // gps_loop_3_second();
+    }
 
     break;
 
   case MachineState::SaveP1:
-  if(gps_save_p1()){
+    if (gps_save_p1())
+    {
       SerialBT.print("P1 saved at Lat: ");
-      SerialBT.print(get_p1_lat(),6);
+      SerialBT.print(get_p1_lat(), 8);
       SerialBT.print(" Lon: ");
-      SerialBT.println(get_p1_lon(),6);
+      SerialBT.print(get_p1_lon(), 8);
       SerialBT.print(" Satellites: ");
       SerialBT.print(gps_satellites());
       SerialBT.print(" HDOP: ");
@@ -227,7 +283,9 @@ void loop()
 
       state = MachineState::RouteCalc;
       Serial.println("State: RouteCalc");
-    }else{
+    }
+    else
+    {
       SerialBT.println("Waiting for a good gps read");
       SerialBT.print(" Satellites: ");
       SerialBT.print(gps_satellites());
@@ -235,7 +293,7 @@ void loop()
       SerialBT.println(gps_hdop());
       delay(1000);
     }
-  break;
+    break;
 
   case MachineState::RouteCalc:
     navCmd = gps_calculate_route();
@@ -248,29 +306,32 @@ void loop()
     state = MachineState::DriveToGoal;
     Serial.println("State: DriveToGoal");
     break;
-case MachineState::DriveToGoal:
-    if (millis() - lastTime > 10000) 
+  case MachineState::DriveToGoal:
+    if (millis() - lastTime > 20000)
     {
-        // 10 seconds are up. Stop the robot.
-        stopMotors();
+      // 10 seconds are up. Stop the robot.
+      stopMotors();
 
-        // Go directly to Evaluation state
-        state = MachineState::Evaluation;
-        SerialBT.println("State: Evaluation");
-        reset_yaw(); // Reset yaw for the next potential action
-    } 
-    else 
+      // Go directly to Evaluation state
+      state = MachineState::Evaluation;
+      SerialBT.println("State: Evaluation");
+      reset_yaw(); // Reset yaw for the next potential action
+    }
+    else
     {
-        // 10 seconds have not passed yet, keep driving
-        driveStraight(yaw, navCmd.bearing_to_goal_deg);
+      // 10 seconds have not passed yet, keep driving
+      driveStraight(yaw, navCmd.bearing_to_goal_deg);
     }
     break;
 
   case MachineState::Evaluation:
-    if(gps_evaluate()){
+    if (gps_evaluate())
+    {
       state = MachineState::Done;
       SerialBT.println("State: Done");
-    }else{
+    }
+    else
+    {
       SerialBT.println("Saving new P0 as P1");
       p1_to_p0();
       // gps_loop_3_second();

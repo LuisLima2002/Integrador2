@@ -86,6 +86,9 @@ void setup()
   pinMode(M2_IN2, OUTPUT);
 
   pinMode(COLLISION_BUZZER, OUTPUT);
+  digitalWrite(COLLISION_BUZZER, HIGH);
+  delay(2000);
+  digitalWrite(COLLISION_BUZZER, LOW);
 
   ledcSetup(CH_M1, PWM_FREQ, PWM_RES);
   ledcAttachPin(M1_EN, CH_M1);
@@ -133,6 +136,7 @@ void setup()
 // Buzzer on and do not move anymore
 
 unsigned long lastTime = 0;
+unsigned long lastTimeStatePrint = 0;
 float yaw = 0;
 float kmh = 0;
 GpsNavCommand navCmd;
@@ -193,6 +197,12 @@ void loop()
       lastTime = millis() - elapsedTimeBlocked;
     }
     digitalWrite(COLLISION_BUZZER, LOW);
+  }
+
+  if( lastTimeStatePrint < millis()-1000){
+    SerialBT.print("Running State: ");
+    SerialBT.println(state);
+    lastTimeStatePrint = millis();
   }
 
   // Finite machine state
@@ -320,7 +330,15 @@ void loop()
     else
     {
       // 10 seconds have not passed yet, keep driving
+      double lat = 0;
+      double lon = 0;
+      gps_current_location(&lat, &lon);
+      SerialBT.print("Lat: ");
+      SerialBT.print(lat, 8);
+      SerialBT.print(" Lon: ");
+      SerialBT.print(lon, 8);
       driveStraight(yaw, navCmd.bearing_to_goal_deg);
+      delay(1000);
     }
     break;
 

@@ -27,6 +27,7 @@ void gps_feed(void);
 // Opcional: para diagnósticos simples (sem prints).
 // Pode ser usado para rate limit externo de logs, se quiser.
 void gps_set_report_interval_ms(uint32_t ms);
+
 uint32_t gps_get_report_interval_ms(void);
 uint32_t gps_get_last_report_ms(void);
 

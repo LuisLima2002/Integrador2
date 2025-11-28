@@ -83,47 +83,112 @@ void gps_feed(void) {
  * It returns 'true' only if ALL 5 points are read successfully.
  * If any single point fails, it stops immediately and returns 'false'.
  */
-bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int delaySeconds=1) {
-    double totalLat = 0.0;
-    double totalLon = 0.0;
+bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints = 10, int delaySeconds = 1) {
+    // --- STATE VARIABLES ---
+    // 'static' means these variables keep their values between function calls
+    static double totalLat = 0.0;
+    static double totalLon = 0.0;
+    static int samplesTaken = 0;
+    static unsigned long lastReadTime = 0;
+    static bool isFirstRead = true;
+
+    // --- 1. Check if we are already done (Safety check) ---
+    // If you need to run this multiple times, you would need a mechanism to reset samplesTaken to 0
+    // For this specific logic, we reset automatically after finishing below.
     
-    for (int i = 0; i < numPoints; i++) {
-        if (i > 0) {
-            // Convert seconds to milliseconds for the delay
-            delay(delaySeconds * 1000); 
-        }
+    // --- 2. Check Timing ---
+    // We only proceed if enough time has passed OR if it's the very first read (no delay needed for the first one)
+    unsigned long currentTime = millis();
+    unsigned long intervalMs = delaySeconds * 1000;
 
-        // --- 2. Try to get the current location ---
-        double currentLat, currentLon;
-        if (!gps_current_location(&currentLat, &currentLon)) {
-            
-            return false;
-        }
-
-        // --- 4. Add the successful point to the total ---
-        totalLat += currentLat;
-        totalLon += currentLon;
+    if (!isFirstRead && (currentTime - lastReadTime < intervalMs)) {
+        // Not enough time has passed yet. 
+        // Return false to say "Not finished yet, come back later"
+        return false;
     }
 
-    // --- 5. If we get here, all 5 points were successful ---
-    // Calculate the average and store it in the output variables
-    *outLat = totalLat / numPoints;
-    *outLon = totalLon / numPoints;
+    // --- 3. Try to get the current location ---
+    double currentLat, currentLon;
+    
+    // Attempt to read GPS
+    if (gps_current_location(&currentLat, &currentLon)) {
+        
+        // Success! Add to total
+        totalLat += currentLat;
+        totalLon += currentLon;
+        samplesTaken++;
+        
+        // Update the timer and flag
+        lastReadTime = currentTime;
+        isFirstRead = false;
 
-    return true;
+        // --- 4. Check if we have enough points ---
+        if (samplesTaken >= numPoints) {
+            // Calculate Average
+            *outLat = totalLat / samplesTaken;
+            *outLon = totalLon / samplesTaken;
+
+            // --- RESET STATE ---
+            // Reset variables so the function can be used again in the future
+            samplesTaken = 0;
+            totalLat = 0.0;
+            totalLon = 0.0;
+            isFirstRead = true;
+
+            // Return true to indicate "Average calculation is complete"
+            return true;
+        }
+    }
+
+    // If we are here, we either:
+    // 1. Didn't wait long enough (handled at top)
+    // 2. Failed to read GPS (we just skip this cycle and try again next time)
+    // 3. Are still collecting samples
+    return false;
 }
+
+
+// bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int delaySeconds=1) {
+//     double totalLat = 0.0;
+//     double totalLon = 0.0;
+    
+//     for (int i = 0; i < numPoints; i++) {
+//         if (i > 0) {
+//             // Convert seconds to milliseconds for the delay
+//             delay(delaySeconds * 1000); 
+//         }
+
+//         // --- 2. Try to get the current location ---
+//         double currentLat, currentLon;
+//         if (!gps_current_location(&currentLat, &currentLon)) {
+            
+//             return false;
+//         }
+
+//         // --- 4. Add the successful point to the total ---
+//         totalLat += currentLat;
+//         totalLon += currentLon;
+//     }
+
+//     // --- 5. If we get here, all 5 points were successful ---
+//     // Calculate the average and store it in the output variables
+//     *outLat = totalLat / numPoints;
+//     *outLon = totalLon / numPoints;
+
+//     return true;
+// }
 
 
 bool gps_save_p0(){
-  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,60);
+  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,20);
 }
 
 bool gps_save_p1(){
-  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,60);
+  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,20);
 }
 
 bool gps_save_goal(){
-  return getAverageGpsLocation(&s_target_lat_deg,&s_target_lon_deg,60);
+  return getAverageGpsLocation(&s_target_lat_deg,&s_target_lon_deg,20);
 }
 
 
@@ -229,7 +294,7 @@ double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
 
 bool gps_evaluate() {
   double lat, lon; 
-  getAverageGpsLocation(&lat, &lon, 60);
+  getAverageGpsLocation(&lat, &lon, 20);
   distance_from_goal = haversine_distance( lat, lon, s_target_lat_deg,s_target_lon_deg);
   if(distance_from_goal > 3) return false;
   return true;

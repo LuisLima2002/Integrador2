@@ -27,7 +27,17 @@ const char index_html[] PROGMEM = R"rawliteral(
     body { font-family: Arial; text-align: center; margin: 0px; padding: 0px; background-color: #222; color: white; }
     h1 { margin-top: 30px; }
     #container { margin-top: 20px; }
-    img { width: 90%; max-width: 640px; height: auto; border: 4px solid #444; border-radius: 8px; }
+    
+    /* MODIFIED: Added transform property to flip the image */
+    img { 
+      width: 90%; 
+      max-width: 640px; 
+      height: auto; 
+      border: 4px solid #444; 
+      border-radius: 8px;
+      transform: rotate(180deg); /* Rotates image 180 degrees */
+    }
+
     .info { margin-top: 20px; color: #fff; font-size: 24px; font-weight: bold;}
     .unit { font-size: 16px; color: #aaa; }
     .btn { background-color: #d32f2f; border: none; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; margin: 4px 2px; cursor: pointer; border-radius: 4px;}
@@ -39,13 +49,13 @@ const char index_html[] PROGMEM = R"rawliteral(
     <img src="/stream" id="video_stream">
   </div>
   
-  <!-- Updated Info Section -->
   <p class="info">Speed: <span id="speedVal">0.0</span> <span class="unit">Kmh</span></p>
   
   <p><button class="btn" onclick="location.reload()">Refresh Stream</button></p>
 
   <script>
-    // This script asks the ESP32 for the speed every 500ms
+    // Updated comment to match the actual interval (1000ms)
+    // This script asks the ESP32 for the speed every 1000ms
     setInterval(function() {
       fetch('/speed')
         .then(response => response.text())
@@ -203,7 +213,7 @@ void loop() {
                   float window_s = MEASURE_INTERVAL / 1000.0f;
                   float rpm = (tempCount / (float)20) * (60.0f / window_s);
 
-                  kmh = rpm * 60.0f * 2.0f * 3.1416f * 3e-5f;
+                  kmh = 10 * rpm * 60.0f * 2.0f * 3.1416f * 3e-5f;
 
                 }
 

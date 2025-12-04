@@ -115,15 +115,15 @@ bool getAverageGpsLocation(double* outLat, double* outLon, int numPoints=10, int
 
 
 bool gps_save_p0(){
-  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,60);
+  return getAverageGpsLocation(&p0_lat_deg,&p0_lon_deg,25);
 }
 
 bool gps_save_p1(){
-  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,60);
+  return getAverageGpsLocation(&p1_lat_deg,&p1_lon_deg,25);
 }
 
 bool gps_save_goal(){
-  return getAverageGpsLocation(&s_target_lat_deg,&s_target_lon_deg,60);
+  return getAverageGpsLocation(&s_target_lat_deg,&s_target_lon_deg,25);
 }
 
 
@@ -229,9 +229,9 @@ double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
 
 bool gps_evaluate() {
   double lat, lon; 
-  getAverageGpsLocation(&lat, &lon, 60);
+  getAverageGpsLocation(&lat, &lon, 25);
   distance_from_goal = haversine_distance( lat, lon, s_target_lat_deg,s_target_lon_deg);
-  if(distance_from_goal > 3) return false;
+  if(distance_from_goal > 6) return false;
   return true;
 }
 

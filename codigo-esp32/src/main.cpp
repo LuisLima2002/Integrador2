@@ -86,7 +86,14 @@ void setup()
   pinMode(M2_IN2, OUTPUT);
 
   pinMode(COLLISION_BUZZER, OUTPUT);
-
+  digitalWrite(COLLISION_BUZZER, HIGH);
+  delay(500);
+  digitalWrite(COLLISION_BUZZER, LOW);
+  delay(500);
+  digitalWrite(COLLISION_BUZZER, HIGH);
+  delay(500);
+  digitalWrite(COLLISION_BUZZER, LOW);
+  
   ledcSetup(CH_M1, PWM_FREQ, PWM_RES);
   ledcAttachPin(M1_EN, CH_M1);
   ledcSetup(CH_M2, PWM_FREQ, PWM_RES);
@@ -133,6 +140,7 @@ void setup()
 // Buzzer on and do not move anymore
 
 unsigned long lastTime = 0;
+unsigned long lastTimePrint = 0;
 float yaw = 0;
 float kmh = 0;
 GpsNavCommand navCmd;
@@ -146,6 +154,7 @@ void loop()
   // Positivo vira para direita
   handleBluetoothCommands();
   yaw = update_yaw();
+  // Serial.println(yaw);
   gps_feed();
   // double lat, lon;
   // gps_current_location(&lat, &lon);
@@ -169,6 +178,7 @@ void loop()
   //       previousMillisRPM = now;
   //   kmh = update_speed();
   // }
+
   float dist_cm = hc.dist();
   if (dist_cm > 2.0f && dist_cm < 25.0f)
   {
@@ -319,6 +329,19 @@ void loop()
     }
     else
     {
+      if(millis()-lastTimePrint > 2000){
+        double lat, lon;
+        gps_current_location(&lat, &lon);
+        SerialBT.print(yaw - navCmd.bearing_to_goal_deg);
+        SerialBT.print(" Lat: ");
+        SerialBT.print(lat,6);
+        SerialBT.print(" Lon: ");
+        SerialBT.print(lon,6);
+        SerialBT.print(" Distance: ");
+        SerialBT.println(haversine_distance(lat,lon,TARGET_LAT,TARGET_LON));
+        lastTimePrint = millis();
+      }
+
       // 10 seconds have not passed yet, keep driving
       driveStraight(yaw, navCmd.bearing_to_goal_deg);
     }
@@ -342,8 +365,9 @@ void loop()
 
   case MachineState::Done:
     digitalWrite(COLLISION_BUZZER, HIGH);
-    // setMotor(1,175);
-    // setMotor(2,-175);
+    delay(1000);
+    digitalWrite(COLLISION_BUZZER, LOW);
+    delay(1000);
     break;
   }
 
